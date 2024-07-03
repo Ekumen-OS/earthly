@@ -49,6 +49,13 @@ type FromOpts struct {
 	Platform        string   `long:"platform" description:"The platform to use"`
 }
 
+type MergeOpts struct {
+	AllowPrivileged bool     `long:"allow-privileged" description:"Allow commands under remote targets to enable privileged mode"`
+	PassArgs        bool     `long:"pass-args" description:"Pass arguments to external targets"`
+	BuildArgs       []string `long:"build-arg" description:"A build arg override passed on to a referenced Earthly target"`
+	Platform        string   `long:"platform" description:"The platform to use"`
+}
+
 type FromDockerfileOpts struct {
 	AllowPrivileged bool     `long:"allow-privileged" description:"Allow command to assume privileged mode"`
 	BuildArgs       []string `long:"build-arg" description:"A build arg override passed on to a referenced Earthly target and also to the Dockerfile build"`

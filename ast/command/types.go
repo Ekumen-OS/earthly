@@ -26,6 +26,7 @@ const (
 	LetCmd                            // "LET"
 	LoadCmd                           // "LOAD"
 	LocallyCmd                        // "LOCALLY"
+	MergeCmd                          // "MERGE"
 	OnBuildCmd                        // "ON BUILD"
 	ProjectCmd                        // "PROJECT"
 	RunCmd                            // "RUN"

@@ -56,7 +56,8 @@ commandStmt:
 	| importStmt
 	| cacheStmt
 	| hostStmt
-	| projectStmt;
+	| projectStmt
+    | mergeStmt;
 
 // version --------------------------------------------------------------------
 version: VERSION stmtWords NL+;
@@ -170,6 +171,7 @@ importStmt: IMPORT stmtWords?;
 cacheStmt: CACHE stmtWords?;
 hostStmt: HOST stmtWords?;
 projectStmt: PROJECT stmtWords?;
+mergeStmt: MERGE stmtWords?;
 
 // expr, stmtWord* ------------------------------------------------------------
 

@@ -67,6 +67,13 @@ func Merge(sts []State, opts ...llb.ConstraintsOpt) State {
 	return State{st: llb.Merge(sts2, opts...)}
 }
 
+// Diff is a wrapper around llb.Diff.
+func Diff(lower, upper State, opts ...llb.ConstraintsOpt) State {
+	gmu.Lock()
+	defer gmu.Unlock()
+	return State{st: llb.Diff(lower.st, upper.st, opts...)}
+}
+
 // RawState returns the wrapped llb.State, but requires an unlock from the caller.
 func (s State) RawState() (llb.State, func()) {
 	gmu.Lock()

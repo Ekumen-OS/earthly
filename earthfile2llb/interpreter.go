@@ -134,7 +134,7 @@ func (i *Interpreter) handleBlockParallel(ctx context.Context, b spec.Block, sta
 		stmt := b[index]
 		if stmt.Command != nil {
 			switch stmt.Command.Name {
-			case command.Arg, command.Locally, command.From, command.FromDockerfile, command.Let, command.Set:
+			case command.Arg, command.Locally, command.From, command.FromDockerfile, command.Let, command.Set, command.Merge:
 				// Cannot do any further parallel builds - these commands need to be
 				// executed to ensure that they don't impact the outcome. As such,
 				// commands following these cannot be executed preemptively.
@@ -224,6 +224,8 @@ func (i *Interpreter) handleCommand(ctx context.Context, cmd spec.Command) (err 
 	switch cmd.Name {
 	case command.From:
 		return i.handleFrom(ctx, cmd)
+	case command.Merge:
+		return i.handleMerge(ctx, cmd)
 	case command.Run:
 		return i.handleRun(ctx, cmd)
 	case command.FromDockerfile:
@@ -913,6 +915,65 @@ func (i *Interpreter) handleLocally(ctx context.Context, cmd spec.Command) error
 	if err != nil {
 		return i.wrapError(err, cmd.SourceLocation, "apply LOCALLY")
 	}
+	return nil
+}
+
+func (i *Interpreter) handleMerge(ctx context.Context, cmd spec.Command) error {
+	if i.pushOnlyAllowed {
+		return i.pushOnlyErr(cmd.SourceLocation)
+	}
+	opts := commandflag.MergeOpts{}
+	args, err := flagutil.ParseArgsCleaned("MERGE", &opts, flagutil.GetArgsCopy(cmd))
+	if err != nil {
+		return i.wrapError(err, cmd.SourceLocation, "invalid MERGE arguments %v", cmd.Args)
+	}
+	if len(args) < 1 {
+		return i.errorf(cmd.SourceLocation, "invalid number of arguments for MERGE: %s", cmd.Args)
+	}
+	expandedArgs, err := i.expandArgsSlice(ctx, args, true, false)
+	if err != nil {
+		return i.errorf(cmd.SourceLocation, "unable to expand args for MERGE: %v", args)
+	}
+	expandedPlatform, err := i.expandArgs(ctx, opts.Platform, false, false)
+	if err != nil {
+		return i.errorf(cmd.SourceLocation, "unable to expand platform for MERGE: %s", opts.Platform)
+	}
+	platform, err := i.converter.platr.Parse(expandedPlatform)
+	if err != nil {
+		return i.wrapError(err, cmd.SourceLocation, "parse platform %s", expandedPlatform)
+	}
+	expandedBuildArgs, err := i.expandArgsSlice(ctx, opts.BuildArgs, true, false)
+	if err != nil {
+		return i.errorf(cmd.SourceLocation, "unable to expand build args for MERGE: %v", opts.BuildArgs)
+	}
+	parsedFlags, mergeRefs, err := variables.ParseFlagArgsWithNonFlags(expandedArgs)
+	if err != nil {
+		return i.wrapError(err, cmd.SourceLocation, "parse flag args")
+	}
+	expandedBuildArgs = append(parsedFlags, expandedBuildArgs...)
+
+	if !i.converter.ftrs.PassArgs && opts.PassArgs {
+		return i.errorf(cmd.SourceLocation, "the MERGE --pass-args flag must be enabled with the VERSION --pass-args feature flag.")
+	}
+
+	for _, ref := range mergeRefs {
+		baseImageName, headImageName, isDiffRef := strings.Cut(ref, "..")
+		if !isDiffRef {
+			headImageName = baseImageName
+		}
+
+		allowPrivileged, err := i.getAllowPrivilegedTarget(headImageName, opts.AllowPrivileged)
+		if err != nil {
+			return err
+		}
+
+		i.local = false // FIXME https://github.com/earthly/earthly/issues/2044
+		err = i.converter.Merge(ctx, ref, platform, allowPrivileged, opts.PassArgs, expandedBuildArgs)
+		if err != nil {
+			return i.wrapError(err, cmd.SourceLocation, "apply MERGE %s", ref)
+		}
+	}
+
 	return nil
 }
 

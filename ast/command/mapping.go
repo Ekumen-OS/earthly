@@ -26,6 +26,7 @@ func init() {
 		LetCmd:            Let,
 		LoadCmd:           Load,
 		LocallyCmd:        Locally,
+		MergeCmd:          Merge,
 		OnBuildCmd:        OnBuild,
 		ProjectCmd:        Project,
 		RunCmd:            Run,

@@ -95,6 +95,7 @@ const (
 	projectCmd                           // "PROJECT"
 	setCmd                               // "SET"
 	letCmd                               // "LET"
+	mergeCmd                             // "MERGE"
 )
 
 // Converter turns earthly commands to buildkit LLB representation.
@@ -454,6 +455,90 @@ func (c *Converter) FromDockerfile(ctx context.Context, contextPath string, dfPa
 	c.mts.Final.RanFromLike = true
 	c.varCollection.ResetEnvVars(envVars)
 	return nil
+}
+
+// Merge applies the earthly MERGE command.
+func (c *Converter) Merge(ctx context.Context, ref string, platform platutil.Platform, allowPrivileged, passArgs bool, buildArgs []string) error {
+	err := c.checkAllowed(mergeCmd)
+	if err != nil {
+		return err
+	}
+	c.nonSaveCommand()
+	if len(c.persistentCacheDirs) > 0 {
+		c.persistentCacheDirs = make(map[string]states.CacheMount)
+	}
+	c.cmdSet = false
+	err = c.checkOldPlatformIncompatibility(platform)
+	if err != nil {
+		return err
+	}
+	c.varCollection.SetLocally(false) // FIXME this will have to change once https://github.com/earthly/earthly/issues/2044 is fixed
+	platform = c.setPlatform(platform)
+
+	prefix, cmdID, err := c.newVertexMeta(ctx, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	state, envVars, platform, err := c.internalDiff(
+		ctx, ref, platform, allowPrivileged, passArgs,
+		buildArgs, mergeCmd, cmdID, prefix,
+	)
+	if err != nil {
+		return err
+	}
+
+	c.mts.Final.MainState = pllb.Merge(
+		[]pllb.State{c.mts.Final.MainState, state},
+		llb.WithCustomNamef("%sMERGE %s", prefix, ref),
+	)
+	c.varCollection.ResetEnvVars(variables.CombineScopes(envVars, c.varCollection.EnvVars()))
+	c.platr.UpdatePlatform(platform)
+
+	return nil
+}
+
+func (c *Converter) internalDiff(ctx context.Context, ref string, platform platutil.Platform, allowPrivileged, passArgs bool, buildArgs []string, cmdT cmdType, parentCmdID, prefix string) (pllb.State, *variables.Scope, platutil.Platform, error) {
+	lowerImageName, upperImageName, isDiffRef := strings.Cut(ref, "..")
+
+	lowerState, lowerEnvVars, lowerPlatform, err := c.internalFetch(ctx, lowerImageName, platform, allowPrivileged, passArgs, buildArgs, cmdT, parentCmdID, prefix)
+	if err != nil || !isDiffRef {
+		return lowerState, lowerEnvVars, lowerPlatform, err
+	}
+
+	upperState, upperEnvVars, upperPlatform, err := c.internalFetch(ctx, upperImageName, platform, allowPrivileged, passArgs, buildArgs, cmdT, parentCmdID, prefix)
+	if err != nil {
+		return upperState, upperEnvVars, upperPlatform, err
+	}
+
+	return pllb.Diff(lowerState, upperState, llb.WithCustomNamef("%sDIFF %s", prefix, ref)), upperEnvVars, upperPlatform, err
+}
+
+func (c *Converter) internalFetch(ctx context.Context, imageName string, platform platutil.Platform, allowPrivileged, passArgs bool, buildArgs []string, cmdT cmdType, parentCmdID, prefix string) (pllb.State, *variables.Scope, platutil.Platform, error) {
+	if !strings.Contains(imageName, "+" ) {
+		state, _, envVars, err := c.internalFromClassical(ctx, imageName, platform, llb.WithCustomNamef("%sFETCH %s", prefix, imageName))
+		return state, envVars, platform, err
+	}
+
+	depTarget, err := domain.ParseTarget(imageName)
+	if err != nil {
+		return pllb.State{}, nil, platform, errors.Wrapf(err, "parse target name %s", imageName)
+	}
+
+	mts, err := c.buildTarget(ctx, depTarget.String(), platform, allowPrivileged, passArgs, buildArgs, false, cmdT, parentCmdID, nil)
+	if err != nil {
+		return pllb.State{}, nil, platform, errors.Wrapf(err, "apply build %s", depTarget.String())
+	}
+
+	if mts.Final.RanInteractive {
+		return pllb.State{}, nil, platform, errors.New("cannot fetch a target ending with an --interactive")
+	}
+
+	if depTarget.IsLocalInternal() {
+		depTarget.LocalPath = c.mts.Final.Target.LocalPath
+	}
+
+	return mts.Final.MainState, mts.Final.VarCollection.EnvVars(), mts.Final.PlatformResolver.Current(), nil
 }
 
 // Locally applies the earthly Locally command.
@@ -2005,8 +2090,8 @@ func (c *Converter) prepBuildTarget(
 	opt.parentCommandID = parentCmdID
 	opt.OnExecutionSuccess = onExecutionSuccess
 
-	if cmdT == buildCmd {
-		// only BUILD commands get propagated
+	if cmdT == buildCmd || cmdT == mergeCmd {
+		// only BUILD and MERGE commands get propagated
 		opt.waitBlock = c.waitBlock()
 	} else {
 		// FROM/COPY commands will return a llb state, which will cause a wait to occur

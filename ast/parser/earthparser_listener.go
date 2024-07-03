@@ -248,6 +248,9 @@ type EarthParserListener interface {
 	// EnterProjectStmt is called when entering the projectStmt production.
 	EnterProjectStmt(c *ProjectStmtContext)
 
+	// EnterMergeStmt is called when entering the mergeStmt production.
+	EnterMergeStmt(c *MergeStmtContext)
+
 	// EnterExpr is called when entering the expr production.
 	EnterExpr(c *ExprContext)
 
@@ -499,6 +502,9 @@ type EarthParserListener interface {
 
 	// ExitProjectStmt is called when exiting the projectStmt production.
 	ExitProjectStmt(c *ProjectStmtContext)
+
+	// ExitMergeStmt is called when exiting the mergeStmt production.
+	ExitMergeStmt(c *MergeStmtContext)
 
 	// ExitExpr is called when exiting the expr production.
 	ExitExpr(c *ExprContext)

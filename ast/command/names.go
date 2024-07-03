@@ -24,6 +24,7 @@ const (
 	Let            = "LET"
 	Load           = "LOAD"
 	Locally        = "LOCALLY"
+	Merge          = "MERGE"
 	OnBuild        = "ONBUILD"
 	Project        = "PROJECT"
 	Run            = "RUN"

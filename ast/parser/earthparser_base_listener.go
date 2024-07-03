@@ -501,6 +501,12 @@ func (s *BaseEarthParserListener) EnterProjectStmt(ctx *ProjectStmtContext) {}
 // ExitProjectStmt is called when production projectStmt is exited.
 func (s *BaseEarthParserListener) ExitProjectStmt(ctx *ProjectStmtContext) {}
 
+// EnterMergeStmt is called when production mergeStmt is entered.
+func (s *BaseEarthParserListener) EnterMergeStmt(ctx *MergeStmtContext) {}
+
+// ExitMergeStmt is called when production mergeStmt is exited.
+func (s *BaseEarthParserListener) ExitMergeStmt(ctx *MergeStmtContext) {}
+
 // EnterExpr is called when production expr is entered.
 func (s *BaseEarthParserListener) EnterExpr(ctx *ExprContext) {}
 

@@ -255,6 +255,10 @@ func (l *listener) EnterFromStmt(c *parser.FromStmtContext) {
 	l.command.Name = "FROM"
 }
 
+func (l *listener) EnterMergeStmt(c *parser.MergeStmtContext) {
+	l.command.Name = "MERGE"
+}
+
 func (l *listener) EnterFromDockerfileStmt(c *parser.FromDockerfileStmtContext) {
 	l.command.Name = "FROM DOCKERFILE"
 }
